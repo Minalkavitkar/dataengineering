@@ -1,0 +1,107 @@
+{
+	"name": "pl_data_movement_ADLS_to_NAS",
+	"properties": {
+		"activities": [
+			{
+				"name": "ForEach1",
+				"type": "ForEach",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@split(string(pipeline().parameters.FILE_NAMES), ',')",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "ADLS_to_NAS",
+							"type": "Copy",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "DelimitedTextSource",
+									"storeSettings": {
+										"type": "AzureBlobFSReadSettings",
+										"recursive": true,
+										"enablePartitionDiscovery": false
+									},
+									"formatSettings": {
+										"type": "DelimitedTextReadSettings"
+									}
+								},
+								"sink": {
+									"type": "DelimitedTextSink",
+									"storeSettings": {
+										"type": "FileServerWriteSettings"
+									},
+									"formatSettings": {
+										"type": "DelimitedTextWriteSettings",
+										"quoteAllText": true,
+										"fileExtension": ".txt"
+									}
+								},
+								"enableStaging": false,
+								"translator": {
+									"type": "TabularTranslator",
+									"typeConversion": true,
+									"typeConversionSettings": {
+										"allowDataTruncation": true,
+										"treatBooleanAsNumber": false
+									}
+								}
+							},
+							"inputs": [
+								{
+									"referenceName": "ds_adl_dp",
+									"type": "DatasetReference",
+									"parameters": {
+										"FOLDER_PATH_SUFFIX": {
+											"value": "@pipeline().parameters.ADLS_FOLDER_PATH_SUFFIX",
+											"type": "Expression"
+										},
+										"FILE_NAME": {
+											"value": "@item()",
+											"type": "Expression"
+										}
+									}
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "ds_onprem_nas",
+									"type": "DatasetReference",
+									"parameters": {
+										"OUTBOUND_FOLDER_NAME": {
+											"value": "@pipeline().globalParameters.EnvFolderName",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"FILE_NAMES": {
+				"type": "string"
+			},
+			"ADLS_FOLDER_PATH_SUFFIX": {
+				"type": "string"
+			}
+		},
+		"folder": {
+			"name": "Adhoc"
+		},
+		"annotations": []
+	}
+}

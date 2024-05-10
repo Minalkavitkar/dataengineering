@@ -1,0 +1,1365 @@
+{
+	"name": "pl_Accounting",
+	"properties": {
+		"activities": [
+			{
+				"name": "Nb_GetListTables",
+				"type": "DatabricksNotebook",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"notebookPath": {
+						"value": "@concat(\npipeline().globalParameters.DbkNotebookPath,\n'Config/CurrentTableRunList')",
+						"type": "Expression"
+					},
+					"baseParameters": {
+						"Module": {
+							"value": "@split(pipeline().Pipeline,'_')[1]",
+							"type": "Expression"
+						}
+					},
+					"libraries": [
+						{
+							"maven": {
+								"coordinates": "com.microsoft.azure:spark-mssql-connector_2.12:1.3.0-BETA"
+							}
+						}
+					]
+				},
+				"linkedServiceName": {
+					"referenceName": "ls_dm_job_compute",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Sp_TruncateTables",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Nb_GetListTables",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_CleanUpTables",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"Schema": "Accounting",
+						"Tables": {
+							"value": "@string(activity('Nb_GetListTables').output.runOutput)",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlFinanceLedgerHeader",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Sp_TruncateTables",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/FinanceLedgerHeader')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Other.sp_DeltaSync",
+						"Schema": "Accounting",
+						"TableName": "FinanceLedgerHeader",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlFinanceLedgerFundPeriod",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "ExecPlFinanceLedgerHeader",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/FinanceLedgerFundPeriod')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Accounting.sp_DeltaSyncFinanceLedgerFundPeriod",
+						"Schema": "NA",
+						"TableName": "NA",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlSettlementLedger",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Sp_TruncateTables",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/SettlementLedger')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Other.sp_DeltaSync",
+						"Schema": "Accounting",
+						"TableName": "SettlementLedger",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlSettlementDetail",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Sp_TruncateTables",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/SettlementDetail')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Other.sp_DeltaSync",
+						"Schema": "Accounting",
+						"TableName": "SettlementDetail",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlAdjustmentControl",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Sp_TruncateTables",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/AdjustmentControl')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Other.sp_DeltaSync",
+						"Schema": "Accounting",
+						"TableName": "AdjustmentControl",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlSettlementLineFrequency",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "ExecPlSettlementHeaderFrequency",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/SettlementLineFrequency')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Accounting.sp_DeltaSyncSettlementLineFrequency",
+						"Schema": "NA",
+						"TableName": "NA",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlStoplossFund",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "ExecPlStoplossDetail",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/StoplossFund')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Accounting.sp_DeltaSyncStoplossFund",
+						"Schema": "NA",
+						"TableName": "NA",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlSettlementTaxIdentifier",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "ExecPlSettlementLimitGuarantee",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/SettlementTaxIdentifier')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Accounting.sp_DeltaSyncSettlementTaxIdentifier",
+						"Schema": "NA",
+						"TableName": "NA",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlSettlementLimitGuarantee",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "ExecPlSettlementRuleCodeDetail",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/SettlementLimitGuarantee')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Accounting.sp_DeltaSyncSettlementLimitGuarantee",
+						"Schema": "NA",
+						"TableName": "NA",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlSettlementRuleCodeDetail",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "ExecPlSettlementRuleCode",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/SettlementRuleCodeDetail')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Accounting.sp_DeltaSyncSettlementRuleCodeDetail",
+						"Schema": "NA",
+						"TableName": "NA",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlSettlementRuleCode",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "ExecPlSettlementSchedule",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/SettlementRuleCode')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Accounting.sp_DeltaSyncSettlementRuleCode",
+						"Schema": "NA",
+						"TableName": "NA",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlSettlementSchedulePayment",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "ExecPlSettlementScheduleControl",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/SettlementSchedulePayment')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Accounting.sp_DeltaSyncSettlementSchedulePayment",
+						"Schema": "NA",
+						"TableName": "NA",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlSettlementContractFund",
+				"type": "ExecutePipeline",
+				"state": "Inactive",
+				"onInactiveMarkAs": "Succeeded",
+				"dependsOn": [
+					{
+						"activity": "ExecPlSettlementProviderContract",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/SettlementContractFund')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Accounting.sp_DeltaSyncSettlementContractFund",
+						"Schema": "NA",
+						"TableName": "NA",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlSettlementScheduleControl",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "ExecPlSettlementControlDetail",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/SettlementScheduleControl')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Accounting.sp_DeltaSyncSettlementScheduleControl",
+						"Schema": "NA",
+						"TableName": "NA",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlSettlementProviderContract",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "ExecPlSettlementControlDetail",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/SettlementProviderContract')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Accounting.sp_DeltaSyncSettlementProviderContract",
+						"Schema": "NA",
+						"TableName": "NA",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlStoplossDetail",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "ExecPlStoplossRule",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/StoplossDetail')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Accounting.sp_DeltaSyncStoplossDetail",
+						"Schema": "NA",
+						"TableName": "NA",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlStoplossRule",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Sp_TruncateTables",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/StoplossRule')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Other.sp_DeltaSync",
+						"Schema": "Accounting",
+						"TableName": "StoplossRule",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlClaimStoploss",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "ExecPlMemberStoploss",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/ClaimStoploss')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Accounting.sp_DeltaSyncClaimStoploss",
+						"Schema": "NA",
+						"TableName": "NA",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlFundStoploss",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "ExecPlMemberStoploss",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "ExecPlProviderStoploss",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/FundStoploss')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Accounting.sp_DeltaSyncFundStoploss",
+						"Schema": "NA",
+						"TableName": "NA",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlStoplossException",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "ExecPlStoplossDetail",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "ExecPlMemberStoploss",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/StoplossException')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Accounting.sp_DeltaSyncStoplossException",
+						"Schema": "NA",
+						"TableName": "NA",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlSettlementRule",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Sp_TruncateTables",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/SettlementRule')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Other.sp_DeltaSync",
+						"Schema": "Accounting",
+						"TableName": "SettlementRule",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlSettlementHeaderFrequency",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Sp_TruncateTables",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/SettlementHeaderFrequency')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Other.sp_DeltaSync",
+						"Schema": "Accounting",
+						"TableName": "SettlementHeaderFrequency",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlMemberStoploss",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Sp_TruncateTables",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/MemberStoploss')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Other.sp_DeltaSync",
+						"Schema": "Accounting",
+						"TableName": "MemberStoploss",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlProviderStoploss",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Sp_TruncateTables",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/ProviderStoploss')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Other.sp_DeltaSync",
+						"Schema": "Accounting",
+						"TableName": "ProviderStoploss",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlSettlementControlDetail",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "ExecPlSettlementRule",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "ExecPlSettlementHeaderFrequency",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/SettlementControlDetail')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Accounting.sp_DeltaSyncSettlementControlDetail",
+						"Schema": "NA",
+						"TableName": "NA",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlSettlementSchedule",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "ExecPlSettlementRule",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Accounting/Task/SettlementSchedule')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Accounting.sp_DeltaSyncSettlementSchedule",
+						"Schema": "NA",
+						"TableName": "NA",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			}
+		],
+		"parameters": {
+			"LoadType": {
+				"type": "string"
+			},
+			"RunId": {
+				"type": "string"
+			},
+			"SeqNum": {
+				"type": "string"
+			}
+		},
+		"variables": {
+			"Module": {
+				"type": "String"
+			}
+		},
+		"folder": {
+			"name": "SubjectArea"
+		},
+		"annotations": []
+	}
+}

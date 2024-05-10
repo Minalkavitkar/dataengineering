@@ -1,0 +1,879 @@
+{
+	"name": "pl_sf_data_movement",
+	"properties": {
+		"activities": [
+			{
+				"name": "UntilFindTriggerFile",
+				"type": "Until",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@variables('FileAvailable')",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Trigger File",
+							"type": "GetMetadata",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"dataset": {
+									"referenceName": "ds_triggger_file",
+									"type": "DatasetReference",
+									"parameters": {
+										"NasPath": {
+											"value": "@pipeline().globalParameters.NasFilePath",
+											"type": "Expression"
+										}
+									}
+								},
+								"fieldList": [
+									"exists"
+								],
+								"storeSettings": {
+									"type": "FileServerReadSettings",
+									"recursive": true,
+									"enablePartitionDiscovery": false
+								},
+								"formatSettings": {
+									"type": "DelimitedTextReadSettings"
+								}
+							}
+						},
+						{
+							"name": "If Trigger File Exists",
+							"type": "IfCondition",
+							"dependsOn": [
+								{
+									"activity": "Trigger File",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"expression": {
+									"value": "@bool(activity('Trigger File').output.exists)",
+									"type": "Expression"
+								},
+								"ifFalseActivities": [
+									{
+										"name": "Wait",
+										"type": "Wait",
+										"dependsOn": [],
+										"userProperties": [],
+										"typeProperties": {
+											"waitTimeInSeconds": 300
+										}
+									}
+								],
+								"ifTrueActivities": [
+									{
+										"name": "SetLoadType",
+										"type": "SetVariable",
+										"dependsOn": [
+											{
+												"activity": "GetLoadType",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"policy": {
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"variableName": "LoadType",
+											"value": {
+												"value": "@string(split(activity('GetLoadType').output.firstRow.Prop_0,'|')[1])",
+												"type": "Expression"
+											}
+										}
+									},
+									{
+										"name": "GetLoadType",
+										"type": "Lookup",
+										"dependsOn": [
+											{
+												"activity": "SetFIleAvailability",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"source": {
+												"type": "DelimitedTextSource",
+												"storeSettings": {
+													"type": "FileServerReadSettings",
+													"recursive": true,
+													"enablePartitionDiscovery": false
+												},
+												"formatSettings": {
+													"type": "DelimitedTextReadSettings"
+												}
+											},
+											"dataset": {
+												"referenceName": "ds_triggger_file",
+												"type": "DatasetReference",
+												"parameters": {
+													"NasPath": {
+														"value": "@pipeline().globalParameters.NasFilePath",
+														"type": "Expression"
+													}
+												}
+											},
+											"firstRowOnly": true
+										}
+									},
+									{
+										"name": "SetFIleAvailability",
+										"type": "SetVariable",
+										"dependsOn": [],
+										"policy": {
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"variableName": "FileAvailable",
+											"value": true
+										}
+									},
+									{
+										"name": "SetSeqNum",
+										"type": "SetVariable",
+										"dependsOn": [
+											{
+												"activity": "GetLoadType",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"policy": {
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"variableName": "SeqNum",
+											"value": {
+												"value": "@string(split(activity('GetLoadType').output.firstRow.Prop_0,'|')[0])",
+												"type": "Expression"
+											}
+										}
+									}
+								]
+							}
+						}
+					],
+					"timeout": "0.02:00:00"
+				}
+			},
+			{
+				"name": "pl_IngestNASData",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Pl_PreScript",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_IngestNASData",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true
+				}
+			},
+			{
+				"name": "pl_Product",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "DisableForeignKeys",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Product",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"LoadType": {
+							"value": "@variables('LoadType')",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@variables('SeqNum')",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "pl_Provider",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "DisableForeignKeys",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Provider",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"LoadType": {
+							"value": "@variables('LoadType')",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@variables('SeqNum')",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "pl_Accounting",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "pl_ProviderContract",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Accounting",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"LoadType": {
+							"value": "@variables('LoadType')",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@variables('SeqNum')",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "pl_ProviderContract",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "pl_Product",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "pl_Provider",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_ProviderContract",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"LoadType": {
+							"value": "@variables('LoadType')",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@variables('SeqNum')",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "pl_Member",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "pl_ProviderContract",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Member",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"LoadType": {
+							"value": "@variables('LoadType')",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@variables('SeqNum')",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "pl_Claim",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "DisableForeignKeys",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Claim",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"LoadType": {
+							"value": "@variables('LoadType')",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@variables('SeqNum')",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "pl_Other",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "DisableForeignKeys",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Other",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"LoadType": {
+							"value": "@variables('LoadType')",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@variables('SeqNum')",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "pl_Capitation",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "DisableForeignKeys",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Capitation",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"LoadType": {
+							"value": "@variables('LoadType')",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@variables('SeqNum')",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "pl_BBSReporting",
+				"type": "ExecutePipeline",
+				"state": "Inactive",
+				"onInactiveMarkAs": "Succeeded",
+				"dependsOn": [
+					{
+						"activity": "DisableForeignKeys",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_BBSReporting",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"LoadType": {
+							"value": "@variables('LoadType')",
+							"type": "Expression"
+						},
+						"TableNames": "All"
+					}
+				}
+			},
+			{
+				"name": "pl_Rif",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "pl_ProviderContract",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_RIF",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"LoadType": {
+							"value": "@variables('LoadType')",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@variables('SeqNum')",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "pl_LargeTable",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "pl_Capitation",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "pl_Accounting",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "pl_Member",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "pl_Rif",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "pl_Claim",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "pl_Other",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "pl_BBSReporting",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_LargeTable",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"LoadType": {
+							"value": "@variables('LoadType')",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@variables('SeqNum')",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "pl_AdlsToAdlsArch",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "EnableForeignKeys",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_AdlsToAdlsArch",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true
+				}
+			},
+			{
+				"name": "Pl_PreScript",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "UntilFindTriggerFile",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PlPreScript",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"LoadType": {
+							"value": "@variables('LoadType')",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@string(variables('SeqNum'))",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Pl_PostScript",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "pl_AdlsToAdlsArch",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PlPostScript",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"LoadType": {
+							"value": "@variables('LoadType')",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@string(variables('SeqNum'))",
+							"type": "Expression"
+						},
+						"PipelineStartInfo": {
+							"value": "@activity('Pl_PreScript').output.pipelineReturnValue.PipelineStartInfo",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "DisableForeignKeys",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "pl_IngestNASData",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(variables('LoadType'),'FullLoad')",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "sp_disable_foreign_key",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "Other.sp_ToggleForeignKeys",
+								"storedProcedureParameters": {
+									"DropOrCreate": {
+										"value": "Drop",
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "ls_dm_sql",
+								"type": "LinkedServiceReference"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "EnableForeignKeys",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "pl_LargeTable",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(variables('LoadType'),'FullLoad')",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "sp_enable_foreign_key",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "Other.sp_ToggleForeignKeys",
+								"storedProcedureParameters": {
+									"DropOrCreate": {
+										"value": "Create",
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "ls_dm_sql",
+								"type": "LinkedServiceReference"
+							}
+						}
+					]
+				}
+			}
+		],
+		"variables": {
+			"LoadType": {
+				"type": "String"
+			},
+			"FileAvailable": {
+				"type": "Boolean"
+			},
+			"path": {
+				"type": "String"
+			},
+			"SeqNum": {
+				"type": "String"
+			},
+			"PipelineStartInfo": {
+				"type": "String"
+			}
+		},
+		"folder": {
+			"name": "Master"
+		},
+		"annotations": []
+	}
+}

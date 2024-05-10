@@ -1,0 +1,239 @@
+{
+	"name": "pl_Capitation",
+	"properties": {
+		"activities": [
+			{
+				"name": "Nb_GetListTables",
+				"type": "DatabricksNotebook",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"notebookPath": {
+						"value": "@concat(\npipeline().globalParameters.DbkNotebookPath,\n'Config/CurrentTableRunList')",
+						"type": "Expression"
+					},
+					"baseParameters": {
+						"Module": {
+							"value": "@split(pipeline().Pipeline,'_')[1]",
+							"type": "Expression"
+						}
+					},
+					"libraries": [
+						{
+							"maven": {
+								"coordinates": "com.microsoft.azure:spark-mssql-connector_2.12:1.3.0-BETA"
+							}
+						}
+					]
+				},
+				"linkedServiceName": {
+					"referenceName": "ls_dm_job_compute",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Sp_TruncateTables",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Nb_GetListTables",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_CleanUpTables",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"Schema": "Capitation",
+						"Tables": {
+							"value": "@string(activity('Nb_GetListTables').output.runOutput)",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlCapRate",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Sp_TruncateTables",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(pipeline().globalParameters.DbkNotebookPath,'Capitation/Task/CapRate')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Other.sp_DeltaSync",
+						"Schema": "Capitation",
+						"TableName": "CapRate",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlCapRateSchedule",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "ExecPlCapRate",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(\npipeline().globalParameters.DbkNotebookPath,\n'Capitation/Task/CapRateSchedule')",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Capitation.sp_DeltaSyncCapRateSchedule",
+						"Schema": "NA",
+						"TableName": "NA",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ExecPlCapRateContractualPercent",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "ExecPlCapRate",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_Task",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"NotebookPath": {
+							"value": "@concat(\npipeline().globalParameters.DbkNotebookPath,\n'Capitation/Task/CapRateContractualPercent')\n",
+							"type": "Expression"
+						},
+						"LoadType": {
+							"value": "@pipeline().parameters.LoadType",
+							"type": "Expression"
+						},
+						"RunId": {
+							"value": "@pipeline().parameters.RunId",
+							"type": "Expression"
+						},
+						"SpName": "Capitation.sp_DeltaSyncCapRateContractualPercent",
+						"Schema": "NA",
+						"TableName": "NA",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"SeqNum": {
+							"value": "@pipeline().parameters.SeqNum",
+							"type": "Expression"
+						}
+					}
+				}
+			}
+		],
+		"parameters": {
+			"LoadType": {
+				"type": "string",
+				"defaultValue": "FullLoad"
+			},
+			"RunId": {
+				"type": "string",
+				"defaultValue": "-199"
+			},
+			"SeqNum": {
+				"type": "string",
+				"defaultValue": "-25"
+			}
+		},
+		"folder": {
+			"name": "SubjectArea"
+		},
+		"annotations": []
+	}
+}
